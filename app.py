@@ -39,7 +39,7 @@ BASE_URL = f'http://{SERVER_IP}:{SERVER_PORT}'
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
-app.config['SERVER_NAME'] = f'{SERVER_IP}:{SERVER_PORT}'
+# app.config['SERVER_NAME'] = f'{SERVER_IP}:{SERVER_PORT}'
 
 chromecasts = None
 selected_chromecast = None
