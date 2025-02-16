@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chromecast Streamer</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h1 class="text-3xl font-bold mb-6 text-center">Chromecast Streamer</h1>
+        
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-2">Available Devices</h2>
+            <div class="flex gap-2 mb-2">
+                <button onclick="refreshDevices()" id="refreshBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
+                    Refresh Devices
+                </button>
+                <span id="status" class="text-gray-600 py-2"></span>
+            </div>
+            <select id="deviceSelect" class="w-full p-2 border rounded">
+                <option value="">Select a Chromecast device...</option>
+            </select>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-2">Stream Media</h2>
+            
+            <!-- URL Input -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-1">Media URL (YouTube or direct link)</label>
+                <input type="text" id="mediaUrl" placeholder="Enter media URL" 
+                       class="w-full p-2 border rounded mb-2">
+                <button onclick="streamMedia()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors">
+                    Stream URL
+                </button>
+            </div>
+
+            <!-- File Upload -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-1">Upload Video File</label>
+                <div class="flex gap-2">
+                    <input type="file" id="fileUpload" accept=".mp4,.mkv,.avi,.mov,.webm" 
+                           class="w-full p-2 border rounded">
+                    <button onclick="uploadFile()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
+                        Upload
+                    </button>
+                </div>
+            </div>
+
+            <!-- Uploaded Files List -->
+            <div class="mb-4">
+                <h3 class="text-lg font-medium mb-2">Uploaded Files</h3>
+                <div id="filesList" class="border rounded p-2 max-h-40 overflow-y-auto">
+                    <p class="text-gray-500 text-sm">Loading files...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-center space-x-4">
+            <button onclick="controlMedia('play')" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors">
+                Play
+            </button>
+            <button onclick="controlMedia('pause')" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 transition-colors">
+                Pause
+            </button>
+            <button onclick="controlMedia('stop')" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors">
+                Stop
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const statusElement = document.getElementById('status');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const deviceSelect = document.getElementById('deviceSelect');
+        const filesListElement = document.getElementById('filesList');
+
+        function setStatus(message, isError = false) {
+            statusElement.textContent = message;
+            statusElement.className = isError ? 'text-red-500 py-2' : 'text-gray-600 py-2';
+        }
+
+        async function refreshDevices() {
+            try {
+                setStatus('Searching for devices...');
+                refreshBtn.disabled = true;
+                refreshBtn.classList.add('opacity-50');
+                
+                const response = await fetch('/devices');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const devices = await response.json();
+                
+                // Clear existing options
+                deviceSelect.innerHTML = '<option value="">Select a Chromecast device...</option>';
+                
+                if (devices.length === 0) {
+                    setStatus('No devices found', true);
+                } else {
+                    devices.forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.uuid;
+                        option.textContent = device.name;
+                        deviceSelect.appendChild(option);
+                    });
+                    setStatus(`Found ${devices.length} device(s)`);
+                }
+            } catch (error) {
+                console.error('Error fetching devices:', error);
+                setStatus('Failed to fetch devices', true);
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.classList.remove('opacity-50');
+            }
+        }
+
+        async function connectDevice() {
+            const deviceUuid = deviceSelect.value;
+            if (!deviceUuid) return;
+
+            try {
+                setStatus('Connecting to device...');
+                const response = await fetch('/connect', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ uuid: deviceUuid })
+                });
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    setStatus(`Connected to ${result.device}`);
+                } else {
+                    setStatus('Failed to connect to device', true);
+                }
+            } catch (error) {
+                console.error('Error connecting to device:', error);
+                setStatus('Failed to connect to device', true);
+            }
+        }
+
+        async function streamMedia() {
+            const mediaUrl = document.getElementById('mediaUrl').value;
+            if (!mediaUrl) {
+                setStatus('Please enter a media URL', true);
+                return;
+            }
+
+            try {
+                setStatus('Starting stream...');
+                const response = await fetch('/stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: mediaUrl })
+                });
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    setStatus('Streaming started');
+                } else {
+                    setStatus(result.message || 'Failed to start streaming', true);
+                }
+            } catch (error) {
+                console.error('Error streaming media:', error);
+                setStatus('Failed to stream media', true);
+            }
+        }
+
+        async function controlMedia(action) {
+            try {
+                setStatus(`${action}ing media...`);
+                const response = await fetch(`/control/${action}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    setStatus(`Media ${action}ed`);
+                } else {
+                    setStatus(`Failed to ${action} media`, true);
+                }
+            } catch (error) {
+                console.error(`Error controlling media (${action}):`, error);
+                setStatus(`Failed to ${action} media`, true);
+            }
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileUpload');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                setStatus('Please select a file to upload', true);
+                return;
+            }
+
+            try {
+                setStatus('Uploading file...');
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    setStatus('File uploaded successfully');
+                    fileInput.value = ''; // Clear the file input
+                    refreshFilesList(); // Refresh the files list
+                } else {
+                    setStatus(result.message || 'Failed to upload file', true);
+                }
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                setStatus('Failed to upload file', true);
+            }
+        }
+
+        async function refreshFilesList() {
+            try {
+                const response = await fetch('/files');
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    if (result.files.length === 0) {
+                        filesListElement.innerHTML = '<p class="text-gray-500 text-sm">No files uploaded yet</p>';
+                    } else {
+                        filesListElement.innerHTML = result.files.map(file => `
+                            <div class="flex justify-between items-center py-1 hover:bg-gray-50">
+                                <span class="text-sm truncate flex-1">${file.filename}</span>
+                                <button onclick="streamUrl('${file.url}')" 
+                                        class="ml-2 bg-green-500 text-white px-2 py-1 rounded text-sm hover:bg-green-600 transition-colors">
+                                    Stream
+                                </button>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    filesListElement.innerHTML = '<p class="text-red-500 text-sm">Failed to load files</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching files:', error);
+                filesListElement.innerHTML = '<p class="text-red-500 text-sm">Failed to load files</p>';
+            }
+        }
+
+        function streamUrl(url) {
+            document.getElementById('mediaUrl').value = url;
+            streamMedia();
+        }
+
+        // Auto-refresh devices and files list on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshDevices();
+            refreshFilesList();
+        });
+        
+        // Connect to device when selected
+        deviceSelect.addEventListener('change', connectDevice);
+    </script>
+</body>
+</html>
