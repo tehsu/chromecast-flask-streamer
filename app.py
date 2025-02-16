@@ -33,8 +33,8 @@ def get_local_ip():
         return '0.0.0.0'
 
 # Server configuration
-SERVER_IP = get_local_ip()
-SERVER_PORT = 5000
+SERVER_IP = os.getenv('SERVER_IP', '0.0.0.0')
+SERVER_PORT = os.getenv('SERVER_PORT', 5000)
 BASE_URL = f'http://{SERVER_IP}:{SERVER_PORT}'
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
